@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Time Scout Stats</title>
+<style>
+  :root{--bg:#eef2f6;--card:#fff;--txt:#111827;--muted:#6b7280;--blue:#1d4ed8;--red:#dc2626;--green:#15803d;--line:#e5e7eb;--dark:#0f172a;}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);font-family:Arial,Helvetica,sans-serif;color:var(--txt)}
+  header{position:sticky;top:0;z-index:5;background:var(--dark);color:white;padding:14px 16px;box-shadow:0 2px 8px #0003}
+  header h1{margin:0;font-size:20px} header small{color:#cbd5e1}
+  main{max-width:1180px;margin:0 auto;padding:16px}
+  .card{background:var(--card);border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 2px 10px #0001;border:1px solid var(--line)}
+  h2{margin:0 0 12px;font-size:20px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  input,select{width:100%;padding:12px;border:1px solid #d1d5db;border-radius:8px;font-size:15px;background:white}
+  button{border:0;border-radius:8px;padding:11px 14px;font-size:15px;color:white;cursor:pointer;background:var(--blue);font-weight:600}button.secondary{background:#4b5563}button.danger{background:var(--red)}button.good{background:var(--green)}button.light{background:#e5e7eb;color:#111827}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.tabs button{background:#e5e7eb;color:#111827}.tabs button.active{background:#f59e0b;color:#111827}.tabs button.blue{background:#2563eb;color:white}
+  .players{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}.player{border:1px solid var(--line);border-radius:14px;background:#fff;overflow:hidden}.player-title{padding:12px 14px;background:#f8fafc;border-bottom:1px solid var(--line);font-weight:800;display:flex;justify-content:space-between}.stats{padding:10px}.stat{display:grid;grid-template-columns:1fr 42px 48px 42px;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid #f1f5f9}.stat:last-child{border-bottom:0}.stat-name{font-size:13px;font-weight:700}.val{text-align:center;font-weight:900}.minus{background:#64748b}.plus{background:#16a34a}.period-badge{font-size:12px;color:#475569;font-weight:700}
+  table{width:100%;border-collapse:collapse;background:white;font-size:13px}th,td{border:1px solid #d1d5db;padding:7px;text-align:center}th{background:#0f172a;color:white}.left{text-align:left}.total-row td{font-weight:800;background:#f3f4f6}.hint{font-size:13px;color:var(--muted);margin-top:8px}.hidden{display:none}
+  @media(max-width:760px){main{padding:10px}.grid,.grid2{grid-template-columns:1fr}.card{padding:12px}.stat{grid-template-columns:1fr 40px 44px 40px}.players{grid-template-columns:1fr}header h1{font-size:18px}}
+</style>
+</head>
+<body>
+<header><h1>📊 Time Scout Stats</h1><small>Scout estatístico por atleta — futsal</small></header>
+<main>
+  <section class="card">
+    <h2>Dados da partida</h2>
+    <div class="grid">
+      <input id="team" placeholder="Nome do time" />
+      <input id="opponent" placeholder="Adversário" />
+      <input id="date" type="date" />
+      <input id="competition" placeholder="Competição / Rodada" />
+    </div>
+    <div class="row" style="margin-top:10px">
+      <input id="goalsFor" type="number" placeholder="Gols feitos" style="max-width:130px" />
+      <input id="goalsAgainst" type="number" placeholder="Gols sofridos" style="max-width:140px" />
+      <div class="tabs">
+        <button id="p1" class="active" onclick="setPeriod(1)">1º tempo</button>
+        <button id="p2" class="blue" onclick="setPeriod(2)">2º tempo</button>
+      </div>
+      <button class="good" onclick="saveMatch()">Salvar partida</button>
+      <button class="secondary" onclick="newMatchKeepPlayers()">Nova partida</button>
+      <button class="danger" onclick="clearAll()">Apagar tudo</button>
+    </div>
+    <div class="hint">Tudo fica salvo neste navegador automaticamente.</div>
+  </section>
+
+  <section class="card">
+    <h2>Atletas</h2>
+    <div class="row">
+      <input id="playerName" placeholder="Nome do atleta" style="flex:1;min-width:220px" />
+      <button onclick="addPlayer()">Adicionar atleta</button>
+      <button class="secondary" onclick="toggleManage()">Gerenciar atletas</button>
+    </div>
+    <div id="manage" class="hint"></div>
+  </section>
+
+  <section class="card">
+    <h2>Lançamento das estatísticas <span id="periodLabel" class="period-badge">1º tempo</span></h2>
+    <div id="players" class="players"></div>
+  </section>
+
+  <section class="card">
+    <h2>Relatório final</h2>
+    <div class="row">
+      <button onclick="renderReport()">Atualizar relatório</button>
+      <button class="good" onclick="exportCsv()">Exportar CSV/Excel</button>
+      <button class="secondary" onclick="toggleHistory()">Histórico</button>
+    </div>
+    <div id="report" style="overflow:auto;margin-top:12px"></div>
+    <div id="history" class="hidden" style="margin-top:12px"></div>
+  </section>
+</main>
+<script>
+const STAT_GROUPS = [
+  ['Finalizações', [['onGoal','No gol'],['offGoal','Fora'],['goals','Gols']]],
+  ['Ações com bola', [['assists','Assistências'],['dribbles','Desarmes'],['interceptions','Intercept. passes'],['blocks','Bloq. chutes'],['badPass','Passe errado']]],
+  ['GKs', [['gkSaves','Defesas goleiro']]],
+  ['Violações', [['foulsCommitted','Falta cometida'],['foulsReceived','Falta sofrida'],['yellow','Cartão amarelo'],['red','Cartão vermelho']]],
+  ['Particip. em gols', [['goalsForParticipation','Feitos'],['goalsAgainstParticipation','Sofridos']]]
+];
+const STATS = STAT_GROUPS.flatMap(g=>g[1]);
+let state = {period:1, team:'', opponent:'', date:'', competition:'', goalsFor:'', goalsAgainst:'', players:[], history:[]};
+function emptyStats(){ const o={}; for(const [k] of STATS) o[k]=0; return o; }
+function load(){ const s=localStorage.getItem('timeScoutStatsV1'); if(s){state=JSON.parse(s);} if(!state.date) state.date=new Date().toISOString().slice(0,10); bindFields(); renderAll(); }
+function save(){ localStorage.setItem('timeScoutStatsV1', JSON.stringify(state)); }
+function bindFields(){ ['team','opponent','date','competition','goalsFor','goalsAgainst'].forEach(id=>{const el=document.getElementById(id); el.value=state[id]||''; el.oninput=()=>{state[id]=el.value; save();};}); }
+function setPeriod(p){ state.period=p; document.getElementById('p1').className=p===1?'active':''; document.getElementById('p2').className=p===2?'active blue':'blue'; document.getElementById('periodLabel').textContent=p+'º tempo'; save(); renderPlayers(); }
+function addPlayer(){ const input=document.getElementById('playerName'); const name=input.value.trim(); if(!name) return; state.players.push({id:Date.now()+Math.random(), name, p1:emptyStats(), p2:emptyStats()}); input.value=''; save(); renderAll(); }
+function removePlayer(id){ if(!confirm('Remover atleta?')) return; state.players=state.players.filter(p=>p.id!==id); save(); renderAll(); }
+function inc(id,key,delta){ const p=state.players.find(x=>x.id===id); if(!p) return; const obj=state.period===1?p.p1:p.p2; obj[key]=Math.max(0,(obj[key]||0)+delta); save(); renderPlayers(); }
+function renderPlayers(){ const box=document.getElementById('players'); if(!state.players.length){ box.innerHTML='<div class="hint">Cadastre os atletas para começar.</div>'; return; } box.innerHTML=state.players.map(p=>{ const obj=state.period===1?p.p1:p.p2; return `<div class="player"><div class="player-title"><span>${esc(p.name)}</span><span>${state.period}ºT</span></div><div class="stats">${STATS.map(([k,l])=>`<div class="stat"><div class="stat-name">${l}</div><button class="minus" onclick="inc(${p.id},'${k}',-1)">−</button><div class="val">${obj[k]||0}</div><button class="plus" onclick="inc(${p.id},'${k}',1)">+</button></div>`).join('')}</div></div>`; }).join(''); }
+function toggleManage(){ const m=document.getElementById('manage'); if(m.innerHTML){m.innerHTML=''; return;} m.innerHTML=state.players.map(p=>`<div class="row" style="margin-top:6px"><strong style="min-width:160px">${esc(p.name)}</strong><button class="danger" onclick="removePlayer(${p.id})">Remover</button></div>`).join('') || 'Nenhum atleta cadastrado.'; }
+function totalsForPlayer(p){ const t={}; for(const [k] of STATS) t[k]=(p.p1[k]||0)+(p.p2[k]||0); return t; }
+function renderReport(){ const rows=state.players.map(p=>({name:p.name, ...totalsForPlayer(p)})); const totals={}; for(const [k] of STATS) totals[k]=rows.reduce((s,r)=>s+(r[k]||0),0); let html='<table><thead><tr><th class="left">Atleta</th>'+STATS.map(s=>`<th>${s[1]}</th>`).join('')+'</tr></thead><tbody>'; html+=rows.map(r=>`<tr><td class="left">${esc(r.name)}</td>${STATS.map(([k])=>`<td>${r[k]||0}</td>`).join('')}</tr>`).join(''); html+=`<tr class="total-row"><td class="left">TOTAL</td>${STATS.map(([k])=>`<td>${totals[k]}</td>`).join('')}</tr></tbody></table>`; document.getElementById('report').innerHTML=html; }
+function saveMatch(){ const snapshot=JSON.parse(JSON.stringify({...state, savedAt:new Date().toISOString()})); state.history.unshift(snapshot); save(); alert('Partida salva no histórico.'); renderHistory(); }
+function toggleHistory(){ document.getElementById('history').classList.toggle('hidden'); renderHistory(); }
+function renderHistory(){ const h=document.getElementById('history'); if(h.classList.contains('hidden')) return; h.innerHTML = state.history.length ? state.history.map((m,i)=>`<div class="card" style="box-shadow:none"><strong>${esc(m.team||'Time')} x ${esc(m.opponent||'Adversário')}</strong><br><small>${m.date||''} | ${m.competition||''} | Placar: ${m.goalsFor||0} x ${m.goalsAgainst||0}</small><div class="row" style="margin-top:8px"><button onclick="openHistory(${i})">Abrir</button><button class="danger" onclick="deleteHistory(${i})">Apagar</button></div></div>`).join('') : '<div class="hint">Nenhuma partida salva.</div>'; }
+function openHistory(i){ const keepHistory=state.history; state=JSON.parse(JSON.stringify(keepHistory[i])); state.history=keepHistory; bindFields(); save(); renderAll(); alert('Partida aberta.'); }
+function deleteHistory(i){ if(!confirm('Apagar partida do histórico?'))return; state.history.splice(i,1); save(); renderHistory(); }
+function newMatchKeepPlayers(){ state.opponent=''; state.competition=''; state.goalsFor=''; state.goalsAgainst=''; state.date=new Date().toISOString().slice(0,10); state.period=1; state.players=state.players.map(p=>({...p,p1:emptyStats(),p2:emptyStats()})); bindFields(); save(); renderAll(); }
+function clearAll(){ if(!confirm('Apagar tudo?')) return; localStorage.removeItem('timeScoutStatsV1'); state={period:1, team:'', opponent:'', date:new Date().toISOString().slice(0,10), competition:'', goalsFor:'', goalsAgainst:'', players:[], history:[]}; bindFields(); renderAll(); }
+function exportCsv(){ const sep=';'; const header=['Time','Adversário','Data','Competição','Gols feitos','Gols sofridos']; let csv=header.join(sep)+'\n'+[state.team,state.opponent,state.date,state.competition,state.goalsFor,state.goalsAgainst].map(csvSafe).join(sep)+'\n\n'; csv += ['Atleta',...STATS.map(s=>s[1])].join(sep)+'\n'; state.players.forEach(p=>{const t=totalsForPlayer(p); csv += [p.name,...STATS.map(([k])=>t[k]||0)].map(csvSafe).join(sep)+'\n';}); const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`time-scout-stats-${state.date||'jogo'}.csv`; a.click(); URL.revokeObjectURL(a.href); }
+function renderAll(){ setPeriod(state.period||1); renderPlayers(); renderReport(); toggleManage(); toggleManage(); }
+function esc(s){return String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function csvSafe(v){v=String(v??''); return '"'+v.replace(/"/g,'""')+'"';}
+load();
+</script>
+</body>
+</html>
